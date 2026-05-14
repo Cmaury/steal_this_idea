@@ -1,0 +1,379 @@
+/* gutter.news — a Hacker News clone with newsprint manners */
+
+:root {
+  --paper:        #f6f2e7;
+  --paper-edge:   #ece6d2;
+  --ink:          #1a1714;
+  --ink-soft:     #5a5249;
+  --ink-faint:    #8a8275;
+  --rule:         #1a1714;
+  --rule-soft:    #c8c0aa;
+  --accent:       #8b1a1a;
+  --accent-soft:  #b04848;
+  --visited:      #76695a;
+  --hl:           #f3e9c8;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Source Serif 4", "Source Serif Pro", Georgia, "Times New Roman", serif;
+  font-weight: 300;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background-image:
+    radial-gradient(rgba(120,90,40,0.025) 1px, transparent 1px),
+    radial-gradient(rgba(120,90,40,0.02)  1px, transparent 1px);
+  background-size: 3px 3px, 7px 7px;
+  background-position: 0 0, 1px 2px;
+}
+
+a {
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+a:hover { border-bottom-color: var(--ink); }
+a:visited { color: var(--visited); }
+
+.masthead {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 22px 24px 0;
+  text-align: center;
+}
+
+.dateline-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 8px;
+}
+
+.dateline-center {
+  font-style: italic;
+  letter-spacing: 0.08em;
+  text-transform: none;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.title {
+  font-family: "Playfair Display", "Times New Roman", serif;
+  font-weight: 900;
+  font-style: normal;
+  font-size: clamp(48px, 9vw, 96px);
+  line-height: 0.95;
+  margin: 18px 0 6px;
+  letter-spacing: -0.015em;
+}
+.title a { border: 0; }
+.title em {
+  font-style: italic;
+  font-weight: 900;
+}
+
+.motto {
+  font-family: "Playfair Display", serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 14px;
+  color: var(--ink-soft);
+  margin: 0 0 14px;
+}
+
+.topnav {
+  border-top: 3px double var(--rule);
+  border-bottom: 1px solid var(--rule);
+  padding: 9px 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  justify-content: flex-start;
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+}
+.topnav a {
+  text-transform: lowercase;
+  font-variant: small-caps;
+  letter-spacing: 0.12em;
+  font-weight: 400;
+}
+.topnav a.active {
+  font-weight: 600;
+  border-bottom: 1px solid var(--ink);
+}
+.topnav .sep {
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+.topnav .spacer { flex: 1; }
+.topnav .login { font-style: italic; }
+
+.stories {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 18px 24px 24px;
+}
+
+.story-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.story {
+  display: grid;
+  grid-template-columns: 34px 18px 1fr;
+  column-gap: 8px;
+  row-gap: 1px;
+  padding: 9px 0;
+  align-items: baseline;
+  border-bottom: 1px dotted var(--rule-soft);
+}
+
+.rank {
+  font-family: "Playfair Display", serif;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--ink-soft);
+  text-align: right;
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.upvote {
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.2;
+  user-select: none;
+  text-align: center;
+  transition: transform 80ms ease;
+}
+.upvote:hover { transform: translateY(-1px); }
+.upvote.voted {
+  color: var(--ink-faint);
+  cursor: default;
+  transform: none;
+}
+
+.story-body { min-width: 0; }
+
+.story-title {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-weight: 400;
+  font-size: 19px;
+  line-height: 1.3;
+}
+.story-title a { color: var(--ink); }
+.story-title a:visited { color: var(--visited); }
+
+.domain {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink-soft);
+  margin-left: 4px;
+  white-space: nowrap;
+}
+.domain a { color: var(--ink-soft); border: 0; }
+.domain a:hover { border-bottom: 1px solid var(--ink-soft); }
+
+.meta {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  font-style: italic;
+  margin-top: 2px;
+  grid-column: 3;
+}
+.meta a { color: var(--ink-soft); border: 0; }
+.meta a:hover { border-bottom: 1px solid var(--ink-soft); }
+.meta .points { font-style: normal; font-weight: 600; color: var(--ink); }
+.meta .user { font-style: normal; }
+
+.more {
+  padding: 18px 0 8px 60px;
+}
+.more a {
+  font-family: "Playfair Display", serif;
+  font-style: italic;
+  font-size: 16px;
+}
+
+footer {
+  max-width: 1040px;
+  margin: 22px auto 48px;
+  padding: 0 24px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+footer hr {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  height: 3px;
+  margin: 0 0 14px;
+}
+.footnav { margin-bottom: 10px; font-style: italic; }
+.footnav a { color: var(--ink-soft); }
+
+.search {
+  margin: 8px 0 12px;
+  font-style: italic;
+}
+.search label { margin-right: 6px; }
+.search input {
+  font-family: inherit;
+  font-size: 13px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--ink);
+  padding: 2px 4px;
+  color: var(--ink);
+  width: 180px;
+}
+.search input:focus { outline: none; background: var(--hl); }
+
+.colophon { font-style: italic; color: var(--ink-faint); }
+
+.story-header {
+  padding: 12px 0 6px;
+  border-bottom: 1px dotted var(--rule-soft);
+}
+.story-header .story-title { font-size: 22px; }
+.story-header .meta { margin-top: 4px; grid-column: auto; }
+
+.compose { margin: 18px 0 26px; }
+.compose textarea {
+  width: 100%;
+  min-height: 96px;
+  font-family: inherit;
+  font-weight: 300;
+  font-size: 15px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  padding: 8px;
+  resize: vertical;
+}
+.compose button {
+  margin-top: 8px;
+  font-family: "Playfair Display", serif;
+  font-style: italic;
+  font-size: 14px;
+  background: var(--ink);
+  color: var(--paper);
+  border: 0;
+  padding: 6px 14px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+}
+.compose button:hover { background: var(--accent); }
+
+.comment-list { list-style: none; padding: 0; margin: 0; }
+.comment {
+  margin: 14px 0;
+  padding-left: 14px;
+  border-left: 1px solid var(--rule-soft);
+}
+.comment .cmeta {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink-soft);
+  margin-bottom: 4px;
+}
+.comment .cmeta .user { font-style: normal; }
+.comment .cbody {
+  font-size: 15px;
+  line-height: 1.55;
+}
+.comment .cbody p { margin: 0 0 8px; }
+.comment .replies { margin-top: 8px; padding-left: 12px; }
+.comment .cactions {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--ink-faint);
+  margin-top: 4px;
+}
+.comment .cactions a { color: var(--ink-faint); border: 0; }
+.comment .cactions a:hover { border-bottom: 1px solid var(--ink-faint); }
+
+.submit-form {
+  max-width: 640px;
+  margin: 24px auto;
+  padding: 0 24px;
+}
+.submit-form h2 {
+  font-family: "Playfair Display", serif;
+  font-weight: 700;
+  font-style: italic;
+  margin: 0 0 12px;
+}
+.submit-form label {
+  display: block;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  margin: 14px 0 4px;
+  color: var(--ink-soft);
+}
+.submit-form input[type=text],
+.submit-form input[type=url],
+.submit-form textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 15px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  padding: 7px 8px;
+}
+.submit-form textarea { min-height: 110px; resize: vertical; }
+.submit-form .hint {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink-faint);
+  margin-top: 4px;
+}
+.submit-form button {
+  margin-top: 18px;
+  font-family: "Playfair Display", serif;
+  font-style: italic;
+  font-size: 15px;
+  background: var(--ink);
+  color: var(--paper);
+  border: 0;
+  padding: 8px 18px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+}
+.submit-form button:hover { background: var(--accent); }
+
+@media (max-width: 640px) {
+  .dateline-row {
+    flex-direction: column;
+    gap: 2px;
+    text-align: center;
+  }
+  .topnav { justify-content: center; }
+  .topnav .spacer { display: none; }
+  .story-title { font-size: 17px; }
+  .more { padding-left: 42px; }
+}
