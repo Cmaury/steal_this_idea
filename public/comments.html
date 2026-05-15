@@ -19,9 +19,13 @@
     <h1 class="title"><a href="/"><em>gutter</em>.news</a></h1>
     <div class="motto">&mdash; All the news that&rsquo;s fit to ship. &mdash;</div>
     <nav class="topnav">
-      <a href="/">top</a>
+      <a href="/" class="nav-sort" data-sort="top">top</a>
       <span class="sep">|</span>
-      <a href="/?sort=new">new</a>
+      <a href="/?sort=new" class="nav-sort" data-sort="new">new</a>
+      <span class="sep">|</span>
+      <a href="/?sort=ask" class="nav-sort" data-sort="ask">ask</a>
+      <span class="sep">|</span>
+      <a href="/?sort=show" class="nav-sort" data-sort="show">show</a>
       <span class="sep">|</span>
       <a href="#" class="active">comments</a>
       <span class="sep">|</span>
@@ -57,7 +61,7 @@
   </footer>
 
   <script>
-    function $(s) { return document.querySelector(s); }
+    function $(s, root) { return (root || document).querySelector(s); }
     function escapeHtml(s) {
       return String(s == null ? "" : s)
         .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -67,15 +71,23 @@
       try { return new URL(url).host; }
       catch { return String(url).replace(/^https?:\/\//, "").split("/")[0]; }
     }
+    function renderTextBody(text) {
+      return escapeHtml(text)
+        .split("\n\n")
+        .map(p => "<p>" + p.replace(/\n/g, "<br>") + "</p>")
+        .join("");
+    }
 
     let currentUser = null;
+    let currentStory = null;
     const storyId = parseInt(new URLSearchParams(location.search).get("id"));
 
     async function init() {
       $("#today").textContent = new Date().toLocaleDateString("en-US", {
         weekday: "long", year: "numeric", month: "long", day: "numeric",
       });
-      await Promise.all([loadMe(), loadStory(), loadComments()]);
+      await loadMe();
+      await Promise.all([loadStory(), loadComments()]);
     }
 
     async function loadMe() {
@@ -89,13 +101,16 @@
     }
 
     function renderAuth() {
-      const el = document.querySelector(".auth-nav");
+      const el = $(".auth-nav");
       if (!el || !currentUser) return;
+      const u = escapeHtml(currentUser.username);
       el.outerHTML =
-        `<a href="#" class="user auth-nav">${escapeHtml(currentUser.username)}</a>` +
+        `<a href="/user.html?id=${encodeURIComponent(currentUser.username)}" class="user auth-nav">${u}</a>` +
+        ` <span class="sep">|</span> ` +
+        `<a href="/settings.html" class="auth-nav">settings</a>` +
         ` <span class="sep">|</span> ` +
         `<a href="#" class="logout auth-nav">logout</a>`;
-      document.querySelector(".logout").addEventListener("click", async (e) => {
+      $(".logout").addEventListener("click", async (e) => {
         e.preventDefault();
         await fetch("/api/logout", { method: "POST", credentials: "same-origin" });
         location.reload();
@@ -124,6 +139,7 @@
           $("#story-header").innerHTML = `<p><em>${escapeHtml(data.error || "Story not found.")}</em></p>`;
           return;
         }
+        currentStory = data.story;
         renderStoryHeader(data.story);
       } catch (e) {
         $("#story-header").innerHTML = `<p><em>Failed to load story.</em></p>`;
@@ -133,6 +149,10 @@
     function renderStoryHeader(s) {
       const url = s.url || "#";
       const domain = s.url ? domainOf(s.url) : "";
+      const ownerActions = s.editable
+        ? ` &middot; <a href="/submit.html?edit=${s.id}">edit</a>` +
+          ` &middot; <a href="#" class="delete-story">delete</a>`
+        : "";
       $("#story-header").innerHTML = `
         <ol class="story-list" style="margin:0;">
           <li class="story" data-id="${s.id}">
@@ -145,10 +165,10 @@
               </span>
               <div class="meta">
                 <span class="points">${s.points}</span> point${s.points === 1 ? "" : "s"} by
-                <a href="#" class="user">${escapeHtml(s.user)}</a> ${escapeHtml(s.age)} &middot;
-                ${s.comments} comment${s.comments === 1 ? "" : "s"}
+                <a href="/user.html?id=${encodeURIComponent(s.user)}" class="user">${escapeHtml(s.user)}</a> ${escapeHtml(s.age)} &middot;
+                ${s.comments} comment${s.comments === 1 ? "" : "s"}${ownerActions}
               </div>
-              ${s.text ? `<div class="story-text">${escapeHtml(s.text)}</div>` : ""}
+              ${s.text ? `<div class="story-text">${renderTextBody(s.text)}</div>` : ""}
             </div>
           </li>
         </ol>
@@ -165,6 +185,14 @@
         if (!r.ok) { upvote.classList.remove("voted"); return; }
         const d = await r.json();
         $("#story-header .points").textContent = d.points;
+      });
+      const del = $("#story-header .delete-story");
+      if (del) del.addEventListener("click", async (e) => {
+        e.preventDefault();
+        if (!confirm("Delete this story?")) return;
+        const r = await fetch(`/api/stories/${s.id}`, { method: "DELETE", credentials: "same-origin" });
+        if (!r.ok) { alert("Failed to delete."); return; }
+        location.href = "/";
       });
     }
 
@@ -190,19 +218,138 @@
         return;
       }
       ul.innerHTML = comments.map(commentHtml).join("");
+      attachCommentHandlers(ul);
     }
 
     function commentHtml(c) {
+      const isDeleted = c.text === "[deleted]";
       const repliesHtml = c.replies && c.replies.length
         ? `<ul class="comment-list replies">${c.replies.map(commentHtml).join("")}</ul>`
         : "";
+      const actions = isDeleted
+        ? ""
+        : `<div class="cactions">
+             ${currentUser ? `<a href="#" class="reply-btn" data-id="${c.id}">reply</a>` : ""}
+             ${c.editable ? ` &middot; <a href="#" class="edit-btn" data-id="${c.id}">edit</a>` : ""}
+             ${c.editable ? ` &middot; <a href="#" class="del-btn" data-id="${c.id}">delete</a>` : ""}
+           </div>`;
       return `
-        <li class="comment">
-          <div class="cmeta"><a href="#" class="user">${escapeHtml(c.user)}</a> &middot; ${escapeHtml(c.age)}</div>
-          <div class="cbody">${escapeHtml(c.text).split("\n\n").map(p => "<p>" + p.replace(/\n/g, "<br>") + "</p>").join("")}</div>
-          <div class="cactions"><a href="#" class="reply" data-id="${c.id}">reply</a></div>
+        <li class="comment" data-id="${c.id}" data-text="${escapeHtml(c.text)}">
+          <div class="cmeta">
+            <a href="/user.html?id=${encodeURIComponent(c.user)}" class="user">${escapeHtml(c.user)}</a>
+            &middot; ${escapeHtml(c.age)}
+          </div>
+          <div class="cbody">${isDeleted ? "<p><em>[deleted]</em></p>" : renderTextBody(c.text)}</div>
+          ${actions}
           ${repliesHtml}
         </li>`;
+    }
+
+    function attachCommentHandlers(root) {
+      root.querySelectorAll(".reply-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          openReplyForm(btn);
+        });
+      });
+      root.querySelectorAll(".edit-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          openEditForm(btn);
+        });
+      });
+      root.querySelectorAll(".del-btn").forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+          e.preventDefault();
+          if (!confirm("Delete this comment?")) return;
+          const id = btn.dataset.id;
+          const r = await fetch(`/api/comments/${id}`, { method: "DELETE", credentials: "same-origin" });
+          if (!r.ok) { alert("Failed to delete."); return; }
+          loadComments();
+        });
+      });
+    }
+
+    function openReplyForm(btn) {
+      const parentId = btn.dataset.id;
+      const cactions = btn.closest(".cactions");
+      const original = cactions.innerHTML;
+      cactions.innerHTML = `
+        <form class="inline-form">
+          <textarea required maxlength="5000" placeholder="Reply&hellip;"></textarea>
+          <div>
+            <button type="submit">reply</button>
+            <a href="#" class="cancel-inline">cancel</a>
+          </div>
+          <p class="error-msg"></p>
+        </form>
+      `;
+      const form = $(".inline-form", cactions);
+      $(".cancel-inline", cactions).addEventListener("click", (e) => {
+        e.preventDefault();
+        cactions.innerHTML = original;
+        attachCommentHandlers(cactions.parentElement);
+      });
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const text = $("textarea", form).value.trim();
+        const errEl = $(".error-msg", form);
+        errEl.textContent = "";
+        if (!text) { errEl.textContent = "Write something first."; return; }
+        const r = await fetch("/api/comments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ story_id: storyId, parent_id: parseInt(parentId), text }),
+        });
+        const d = await r.json();
+        if (!r.ok) { errEl.textContent = d.error || "Failed to post."; return; }
+        loadComments();
+        loadStory();
+      });
+      $("textarea", form).focus();
+    }
+
+    function openEditForm(btn) {
+      const id = btn.dataset.id;
+      const li = btn.closest(".comment");
+      const cbody = $(".cbody", li);
+      const cactions = $(".cactions", li);
+      const originalText = li.dataset.text;
+      cbody.innerHTML = `
+        <form class="inline-form">
+          <textarea required maxlength="5000"></textarea>
+          <div>
+            <button type="submit">save</button>
+            <a href="#" class="cancel-inline">cancel</a>
+          </div>
+          <p class="error-msg"></p>
+        </form>
+      `;
+      cactions.innerHTML = "";
+      const form = $(".inline-form", cbody);
+      $("textarea", form).value = originalText;
+      $(".cancel-inline", form).addEventListener("click", (e) => {
+        e.preventDefault();
+        loadComments();
+      });
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const text = $("textarea", form).value.trim();
+        const errEl = $(".error-msg", form);
+        errEl.textContent = "";
+        if (!text) { errEl.textContent = "Write something first."; return; }
+        const r = await fetch(`/api/comments/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ text }),
+        });
+        const d = await r.json();
+        if (!r.ok) { errEl.textContent = d.error || "Failed to save."; return; }
+        loadComments();
+      });
+      $("textarea", form).focus();
     }
 
     $("#compose-form").addEventListener("submit", async (e) => {

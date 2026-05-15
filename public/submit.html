@@ -19,9 +19,13 @@
     <h1 class="title"><a href="/"><em>gutter</em>.news</a></h1>
     <div class="motto">&mdash; All the news that&rsquo;s fit to ship. &mdash;</div>
     <nav class="topnav">
-      <a href="/">top</a>
+      <a href="/" class="nav-sort" data-sort="top">top</a>
       <span class="sep">|</span>
-      <a href="/?sort=new">new</a>
+      <a href="/?sort=new" class="nav-sort" data-sort="new">new</a>
+      <span class="sep">|</span>
+      <a href="/?sort=ask" class="nav-sort" data-sort="ask">ask</a>
+      <span class="sep">|</span>
+      <a href="/?sort=show" class="nav-sort" data-sort="show">show</a>
       <span class="sep">|</span>
       <a href="/submit.html" class="active">submit</a>
       <span class="spacer"></span>
@@ -31,7 +35,7 @@
 
   <main>
     <form class="submit-form" id="submit-form">
-      <h2>File a story</h2>
+      <h2 id="form-heading">File a story</h2>
 
       <label for="title">Title</label>
       <input id="title" type="text" maxlength="200" required>
@@ -45,15 +49,17 @@
       <textarea id="text" placeholder="Optional context for the desk." maxlength="10000"></textarea>
 
       <p class="error-msg" id="error"></p>
-      <button type="submit">file story</button>
+      <button type="submit" id="submit-btn">file story</button>
+      <a href="#" id="cancel-edit" style="display:none; margin-left:12px; font-style:italic;">cancel</a>
     </form>
 
-    <div class="submit-form" style="margin-top:8px;">
+    <div class="submit-form" style="margin-top:8px;" id="house-rules">
       <h2 style="font-size:18px;">House rules</h2>
       <ol>
         <li>On-topic: tools, craft, and infrastructure of journalism &mdash; or things that would interest someone who hacks on either.</li>
         <li>Editorialise in comments, not in titles.</li>
         <li>Corrections welcome. We post them with a stet mark.</li>
+        <li>Ask the room with <em>Ask G:</em> in the title; show your work with <em>Show G:</em>.</li>
       </ol>
     </div>
   </main>
@@ -68,18 +74,31 @@
   </footer>
 
   <script>
+    function escapeHtml(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
     document.getElementById("today").textContent = new Date().toLocaleDateString("en-US", {
       weekday: "long", year: "numeric", month: "long", day: "numeric",
     });
 
+    const editId = parseInt(new URLSearchParams(location.search).get("edit"));
+
     (async () => {
+      let currentUser = null;
       try {
         const res = await fetch("/api/me", { credentials: "same-origin" });
         const data = await res.json();
-        if (data.user) {
+        currentUser = data.user;
+        if (currentUser) {
           const el = document.querySelector(".auth-nav");
+          const u = escapeHtml(currentUser.username);
           el.outerHTML =
-            `<a href="#" class="user auth-nav">${data.user.username.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}</a>` +
+            `<a href="/user.html?id=${encodeURIComponent(currentUser.username)}" class="user auth-nav">${u}</a>` +
+            ` <span class="sep">|</span> ` +
+            `<a href="/settings.html" class="auth-nav">settings</a>` +
             ` <span class="sep">|</span> ` +
             `<a href="#" class="logout auth-nav">logout</a>`;
           document.querySelector(".logout").addEventListener("click", async (e) => {
@@ -89,6 +108,33 @@
           });
         }
       } catch (e) { /* ignore */ }
+
+      if (editId) {
+        if (!currentUser) {
+          location.href = "/login.html?next=" + encodeURIComponent(location.pathname + location.search);
+          return;
+        }
+        const r = await fetch(`/api/stories/${editId}`, { credentials: "same-origin" });
+        const d = await r.json();
+        if (!r.ok) {
+          document.getElementById("error").textContent = d.error || "Failed to load story.";
+          return;
+        }
+        if (!d.story.editable) {
+          document.getElementById("error").textContent = "You can't edit this story.";
+          document.getElementById("submit-btn").disabled = true;
+          return;
+        }
+        document.getElementById("form-heading").textContent = "Edit story";
+        document.getElementById("title").value = d.story.title || "";
+        document.getElementById("url").value = d.story.url || "";
+        document.getElementById("text").value = d.story.text || "";
+        document.getElementById("submit-btn").textContent = "save changes";
+        const cancel = document.getElementById("cancel-edit");
+        cancel.style.display = "";
+        cancel.href = "/comments.html?id=" + editId;
+        document.getElementById("house-rules").style.display = "none";
+      }
     })();
 
     document.getElementById("submit-form").addEventListener("submit", async (e) => {
@@ -99,8 +145,10 @@
       const errEl = document.getElementById("error");
       errEl.textContent = "";
 
-      const res = await fetch("/api/stories", {
-        method: "POST",
+      const method = editId ? "PATCH" : "POST";
+      const endpoint = editId ? `/api/stories/${editId}` : "/api/stories";
+      const res = await fetch(endpoint, {
+        method,
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
         body: JSON.stringify({ title, url, text }),
