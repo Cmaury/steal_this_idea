@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Register &mdash; gutter.news</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,300;1,8..60,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="masthead">
+    <div class="dateline-row">
+      <span class="dateline-left">Vol. I &middot; No. 1</span>
+      <span class="dateline-center">The Hacker News for News Hackers</span>
+      <span class="dateline-right" id="today"></span>
+    </div>
+    <h1 class="title"><a href="/"><em>gutter</em>.news</a></h1>
+    <div class="motto">&mdash; All the news that&rsquo;s fit to ship. &mdash;</div>
+    <nav class="topnav">
+      <a href="/">top</a>
+      <span class="sep">|</span>
+      <a href="/submit.html">submit</a>
+      <span class="spacer"></span>
+      <a href="/login.html" class="login auth-nav">login</a>
+    </nav>
+  </header>
+
+  <main>
+    <form class="submit-form" id="register-form">
+      <h2>Get a press card</h2>
+      <label for="username">Username</label>
+      <input id="username" type="text" autocomplete="username" autofocus required>
+      <p class="hint">2&ndash;20 characters, lowercase letters, digits, hyphens, or underscores.</p>
+
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="new-password" minlength="8" required>
+      <p class="hint">At least 8 characters. No recovery yet &mdash; don&rsquo;t lose it.</p>
+
+      <p class="error-msg" id="error"></p>
+      <button type="submit">register</button>
+      <p class="hint" style="margin-top:14px;">
+        Already have an account? <a href="/login.html">Log in</a>.
+      </p>
+    </form>
+  </main>
+
+  <footer>
+    <hr>
+    <nav class="footnav"><a href="/">Front page</a></nav>
+    <p class="colophon">Set in Playfair Display &amp; Source Serif. Hand-set in the gutter.</p>
+  </footer>
+
+  <script>
+    document.getElementById("today").textContent = new Date().toLocaleDateString("en-US", {
+      weekday: "long", year: "numeric", month: "long", day: "numeric",
+    });
+
+    document.getElementById("register-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const u = document.getElementById("username").value;
+      const p = document.getElementById("password").value;
+      const errEl = document.getElementById("error");
+      errEl.textContent = "";
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ username: u, password: p }),
+      });
+      const data = await res.json();
+      if (!res.ok) { errEl.textContent = data.error || "Registration failed."; return; }
+      location.href = "/";
+    });
+  </script>
+</body>
+</html>
