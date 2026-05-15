@@ -10,4 +10,4 @@ not_found_handling = "404-page"
 [[d1_databases]]
 binding = "DB"
 database_name = "gutter-news"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "8aba28a0-7586-441c-9bad-dc71aefabc0e"
