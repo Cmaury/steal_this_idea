@@ -12,6 +12,7 @@
   --accent-soft:  #b04848;
   --visited:      #76695a;
   --hl:           #f3e9c8;
+  --ok:           #2e6d3a;
 }
 
 * { box-sizing: border-box; }
@@ -85,10 +86,7 @@ a:visited { color: var(--visited); }
   letter-spacing: -0.015em;
 }
 .title a { border: 0; }
-.title em {
-  font-style: italic;
-  font-weight: 900;
-}
+.title em { font-style: italic; font-weight: 900; }
 
 .motto {
   font-family: "Playfair Display", serif;
@@ -178,6 +176,7 @@ a:visited { color: var(--visited); }
   cursor: default;
   transform: none;
 }
+.upvote-placeholder { display: inline-block; width: 14px; }
 
 .story-body { min-width: 0; }
 
@@ -194,8 +193,8 @@ a:visited { color: var(--visited); }
   font-size: 15px;
   margin-top: 8px;
   color: var(--ink);
-  white-space: pre-wrap;
 }
+.story-text p { margin: 0 0 8px; }
 
 .domain {
   font-size: 12px;
@@ -230,6 +229,7 @@ a:visited { color: var(--visited); }
 
 .more {
   padding: 18px 0 8px 60px;
+  min-height: 18px;
 }
 .more a {
   font-family: "Playfair Display", serif;
@@ -326,6 +326,47 @@ footer hr {
 .comment .cactions a { color: var(--ink-faint); border: 0; }
 .comment .cactions a:hover { border-bottom: 1px solid var(--ink-faint); }
 
+.inline-form {
+  margin: 8px 0 4px;
+}
+.inline-form textarea {
+  width: 100%;
+  min-height: 80px;
+  font-family: inherit;
+  font-weight: 300;
+  font-size: 14px;
+  background: var(--paper);
+  border: 1px solid var(--rule-soft);
+  padding: 6px 8px;
+  resize: vertical;
+}
+.inline-form button {
+  margin-top: 6px;
+  font-family: "Playfair Display", serif;
+  font-style: italic;
+  font-size: 13px;
+  background: var(--ink);
+  color: var(--paper);
+  border: 0;
+  padding: 4px 12px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+}
+.inline-form button:hover { background: var(--accent); }
+.inline-form .cancel-inline {
+  margin-left: 8px;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink-faint);
+  border: 0;
+}
+.inline-form .error-msg {
+  color: var(--accent);
+  font-style: italic;
+  font-size: 12px;
+  margin: 4px 0 0;
+}
+
 .submit-form {
   max-width: 640px;
   margin: 24px auto;
@@ -369,6 +410,13 @@ footer hr {
   margin: 10px 0 0;
   min-height: 1.2em;
 }
+.submit-form .ok-msg {
+  color: var(--ok);
+  font-style: italic;
+  font-size: 13px;
+  margin: 10px 0 0;
+  min-height: 1.2em;
+}
 .submit-form button {
   margin-top: 18px;
   font-family: "Playfair Display", serif;
@@ -382,6 +430,40 @@ footer hr {
   letter-spacing: 0.04em;
 }
 .submit-form button:hover { background: var(--accent); }
+.submit-form button[disabled] { opacity: 0.4; cursor: not-allowed; }
+.submit-form button[disabled]:hover { background: var(--ink); }
+
+.profile-card {
+  border-bottom: 1px solid var(--rule);
+  padding: 14px 0 12px;
+  margin-bottom: 14px;
+}
+.profile-name {
+  font-family: "Playfair Display", serif;
+  font-weight: 700;
+  font-style: italic;
+  font-size: 32px;
+  margin: 0 0 6px;
+}
+.profile-meta {
+  font-size: 13px;
+  color: var(--ink-soft);
+  font-style: italic;
+  margin: 0;
+}
+.profile-meta strong {
+  color: var(--ink);
+  font-style: normal;
+}
+.section-head {
+  font-family: "Playfair Display", serif;
+  font-weight: 700;
+  font-style: italic;
+  font-size: 20px;
+  margin: 22px 0 8px;
+  border-bottom: 1px dotted var(--rule-soft);
+  padding-bottom: 4px;
+}
 
 @media (max-width: 640px) {
   .dateline-row {

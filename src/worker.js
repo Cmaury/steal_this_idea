@@ -2,6 +2,8 @@ const SESSION_COOKIE = "g_session";
 const SESSION_DAYS = 30;
 const GRAVITY = 1.8;
 const TOP_LIMIT = 30;
+const MAX_LIMIT = 60;
+const EDIT_WINDOW_SECONDS = 1800;
 
 export default {
   async fetch(request, env) {
@@ -26,37 +28,42 @@ async function handleApi(request, env, url) {
     ? await env.DB.prepare("SELECT id, username FROM users WHERE id = ?").bind(session.user_id).first()
     : null;
 
-  if (path === "/api/me" && method === "GET") {
-    return json({ user });
+  if (path === "/api/me" && method === "GET") return json({ user });
+
+  if (path === "/api/me/password" && method === "POST") {
+    if (!user) return json({ error: "login required" }, 401);
+    return changePassword(env, user, await request.json());
   }
 
-  if (path === "/api/register" && method === "POST") {
-    return register(env, await request.json());
-  }
-
-  if (path === "/api/login" && method === "POST") {
-    return login(env, await request.json());
-  }
+  if (path === "/api/register" && method === "POST") return register(env, await request.json());
+  if (path === "/api/login" && method === "POST") return login(env, await request.json());
 
   if (path === "/api/logout" && method === "POST") {
-    if (session) {
-      await env.DB.prepare("DELETE FROM sessions WHERE token = ?").bind(session.token).run();
-    }
+    if (session) await env.DB.prepare("DELETE FROM sessions WHERE token = ?").bind(session.token).run();
     return new Response(null, { status: 204, headers: { "Set-Cookie": clearCookie() } });
   }
 
-  if (path === "/api/stories" && method === "GET") {
-    return listStories(env, url.searchParams.get("sort") || "top", user);
-  }
+  const userMatch = path.match(/^\/api\/users\/([a-z0-9_-]+)$/i);
+  if (userMatch && method === "GET") return getUserProfile(env, userMatch[1]);
 
+  if (path === "/api/stories" && method === "GET") return listStories(env, url.searchParams, user);
   if (path === "/api/stories" && method === "POST") {
     if (!user) return json({ error: "login required" }, 401);
     return submitStory(env, user, await request.json());
   }
 
   const storyMatch = path.match(/^\/api\/stories\/(\d+)$/);
-  if (storyMatch && method === "GET") {
-    return getStory(env, parseInt(storyMatch[1]), user);
+  if (storyMatch) {
+    const storyId = parseInt(storyMatch[1]);
+    if (method === "GET") return getStory(env, storyId, user);
+    if (method === "PATCH") {
+      if (!user) return json({ error: "login required" }, 401);
+      return editStory(env, user, storyId, await request.json());
+    }
+    if (method === "DELETE") {
+      if (!user) return json({ error: "login required" }, 401);
+      return deleteStory(env, user, storyId);
+    }
   }
 
   const voteMatch = path.match(/^\/api\/stories\/(\d+)\/vote$/);
@@ -65,14 +72,25 @@ async function handleApi(request, env, url) {
     return vote(env, parseInt(voteMatch[1]), user);
   }
 
-  const commentsMatch = path.match(/^\/api\/stories\/(\d+)\/comments$/);
-  if (commentsMatch && method === "GET") {
-    return listComments(env, parseInt(commentsMatch[1]));
-  }
+  const commentsListMatch = path.match(/^\/api\/stories\/(\d+)\/comments$/);
+  if (commentsListMatch && method === "GET") return listComments(env, parseInt(commentsListMatch[1]), user);
 
   if (path === "/api/comments" && method === "POST") {
     if (!user) return json({ error: "login required" }, 401);
     return submitComment(env, user, await request.json());
+  }
+
+  const commentMatch = path.match(/^\/api\/comments\/(\d+)$/);
+  if (commentMatch) {
+    const commentId = parseInt(commentMatch[1]);
+    if (method === "PATCH") {
+      if (!user) return json({ error: "login required" }, 401);
+      return editComment(env, user, commentId, await request.json());
+    }
+    if (method === "DELETE") {
+      if (!user) return json({ error: "login required" }, 401);
+      return deleteComment(env, user, commentId);
+    }
   }
 
   return json({ error: "not found" }, 404);
@@ -87,9 +105,7 @@ async function register(env, body) {
   if (!/^[a-z0-9_-]{2,20}$/.test(username)) {
     return json({ error: "username must be 2-20 chars: a-z 0-9 _ -" }, 400);
   }
-  if (String(password).length < 8) {
-    return json({ error: "password must be at least 8 characters" }, 400);
-  }
+  if (String(password).length < 8) return json({ error: "password must be at least 8 characters" }, 400);
   const existing = await env.DB.prepare("SELECT id FROM users WHERE username = ?").bind(username).first();
   if (existing) return json({ error: "username taken" }, 409);
 
@@ -115,6 +131,25 @@ async function login(env, body) {
   if (!timingSafeEqual(hash, u.password_hash)) return json({ error: "invalid credentials" }, 401);
   const cookie = await createSession(env, u.id);
   return json({ user: { id: u.id, username: u.username } }, 200, { "Set-Cookie": cookie });
+}
+
+async function changePassword(env, user, body) {
+  const { current, next } = body || {};
+  if (!current || !next) return json({ error: "current and new password required" }, 400);
+  if (String(next).length < 8) return json({ error: "new password must be at least 8 characters" }, 400);
+  const row = await env.DB.prepare(
+    "SELECT password_hash, password_salt FROM users WHERE id = ?"
+  ).bind(user.id).first();
+  const currHash = await pbkdf2(current, row.password_salt);
+  if (!timingSafeEqual(currHash, row.password_hash)) return json({ error: "current password is wrong" }, 401);
+  const newSalt = randomHex(16);
+  const newHash = await pbkdf2(next, newSalt);
+  await env.DB.prepare(
+    "UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?"
+  ).bind(newHash, newSalt, user.id).run();
+  await env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(user.id).run();
+  const cookie = await createSession(env, user.id);
+  return json({ ok: true }, 200, { "Set-Cookie": cookie });
 }
 
 async function createSession(env, userId) {
@@ -156,13 +191,75 @@ function parseCookies(request) {
   return out;
 }
 
+// --- users ---
+
+async function getUserProfile(env, username) {
+  username = String(username).toLowerCase();
+  const u = await env.DB.prepare(
+    "SELECT id, username, created_at FROM users WHERE username = ?"
+  ).bind(username).first();
+  if (!u) return json({ error: "user not found" }, 404);
+
+  const k = await env.DB.prepare(`
+    SELECT COUNT(*) AS karma FROM votes v
+    JOIN stories s ON s.id = v.story_id
+    WHERE s.user_id = ? AND v.user_id != s.user_id
+  `).bind(u.id).first();
+
+  const submissions = await env.DB.prepare(`
+    SELECT s.id, s.title, s.url, s.created_at,
+      (SELECT COUNT(*) FROM votes WHERE story_id = s.id) AS points,
+      (SELECT COUNT(*) FROM comments WHERE story_id = s.id) AS comment_count
+    FROM stories s WHERE s.user_id = ?
+    ORDER BY s.created_at DESC LIMIT 20
+  `).bind(u.id).all();
+
+  const comments = await env.DB.prepare(`
+    SELECT c.id, c.story_id, c.text, c.created_at, s.title AS story_title
+    FROM comments c JOIN stories s ON s.id = c.story_id
+    WHERE c.user_id = ? ORDER BY c.created_at DESC LIMIT 20
+  `).bind(u.id).all();
+
+  return json({
+    profile: {
+      username: u.username,
+      created: ageString(u.created_at),
+      karma: k.karma,
+      submissions: (submissions.results || []).map(s => ({
+        id: s.id, title: s.title, url: s.url,
+        points: s.points, comments: s.comment_count,
+        age: ageString(s.created_at),
+      })),
+      comments: (comments.results || []).map(c => ({
+        id: c.id, story_id: c.story_id, story_title: c.story_title,
+        text: c.text, age: ageString(c.created_at),
+      })),
+    },
+  });
+}
+
 // --- stories ---
 
-async function listStories(env, sort, user) {
-  const orderBy = sort === "new"
-    ? "s.created_at DESC, s.id DESC"
-    : "score DESC, s.created_at DESC";
+async function listStories(env, searchParams, user) {
+  const sort = searchParams.get("sort") || "top";
+  const offset = Math.max(0, parseInt(searchParams.get("offset") || "0"));
+  const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(searchParams.get("limit") || String(TOP_LIMIT))));
   const userId = user ? user.id : -1;
+
+  let where = "";
+  let orderBy;
+  if (sort === "new") {
+    orderBy = "s.created_at DESC, s.id DESC";
+  } else if (sort === "ask") {
+    where = "WHERE LOWER(s.title) LIKE 'ask g:%' OR LOWER(s.title) LIKE 'ask hn:%' OR (s.url IS NULL AND LOWER(s.title) LIKE 'ask%')";
+    orderBy = "score DESC, s.created_at DESC";
+  } else if (sort === "show") {
+    where = "WHERE LOWER(s.title) LIKE 'show g:%' OR LOWER(s.title) LIKE 'show hn:%'";
+    orderBy = "score DESC, s.created_at DESC";
+  } else {
+    orderBy = "score DESC, s.created_at DESC";
+  }
+
   const stmt = env.DB.prepare(`
     SELECT s.id, s.title, s.url, s.text, s.created_at, u.username,
       COUNT(v.user_id) AS points,
@@ -173,18 +270,20 @@ async function listStories(env, sort, user) {
     FROM stories s
     JOIN users u ON u.id = s.user_id
     LEFT JOIN votes v ON v.story_id = s.id
+    ${where}
     GROUP BY s.id
     ORDER BY ${orderBy}
-    LIMIT ?
+    LIMIT ? OFFSET ?
   `);
-  const result = await stmt.bind(GRAVITY, userId, TOP_LIMIT).all();
-  return json({ stories: (result.results || []).map(formatStory) });
+  const result = await stmt.bind(GRAVITY, userId, limit, offset).all();
+  const stories = (result.results || []).map(formatStory);
+  return json({ stories, has_more: stories.length === limit, offset, limit });
 }
 
 async function getStory(env, storyId, user) {
   const userId = user ? user.id : -1;
   const row = await env.DB.prepare(`
-    SELECT s.id, s.title, s.url, s.text, s.created_at, u.username,
+    SELECT s.id, s.user_id, s.title, s.url, s.text, s.created_at, u.username,
       (SELECT COUNT(*) FROM votes WHERE story_id = s.id) AS points,
       EXISTS(SELECT 1 FROM votes WHERE story_id = s.id AND user_id = ?) AS voted,
       (SELECT COUNT(*) FROM comments WHERE story_id = s.id) AS comment_count
@@ -192,7 +291,10 @@ async function getStory(env, storyId, user) {
     WHERE s.id = ?
   `).bind(userId, storyId).first();
   if (!row) return json({ error: "story not found" }, 404);
-  return json({ story: formatStory(row) });
+  const story = formatStory(row);
+  story.own = !!(user && user.id === row.user_id);
+  story.editable = story.own && withinEditWindow(row.created_at);
+  return json({ story });
 }
 
 function formatStory(row) {
@@ -223,6 +325,12 @@ function ageString(sqliteDatetime) {
   return new Date(isoUtc).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function withinEditWindow(sqliteDatetime) {
+  const isoUtc = sqliteDatetime.replace(" ", "T") + "Z";
+  const created = new Date(isoUtc).getTime();
+  return (Date.now() - created) < EDIT_WINDOW_SECONDS * 1000;
+}
+
 async function submitStory(env, user, body) {
   let { title, url: storyUrl, text } = body || {};
   title = (title || "").trim();
@@ -244,6 +352,41 @@ async function submitStory(env, user, body) {
   return json({ id: storyId }, 201);
 }
 
+async function editStory(env, user, storyId, body) {
+  const story = await env.DB.prepare(
+    "SELECT user_id, created_at FROM stories WHERE id = ?"
+  ).bind(storyId).first();
+  if (!story) return json({ error: "story not found" }, 404);
+  if (story.user_id !== user.id) return json({ error: "not your story" }, 403);
+  if (!withinEditWindow(story.created_at)) return json({ error: "edit window has passed" }, 403);
+
+  let { title, url: storyUrl, text } = body || {};
+  title = (title || "").trim();
+  storyUrl = (storyUrl || "").trim() || null;
+  text = (text || "").trim() || null;
+  if (!title) return json({ error: "title required" }, 400);
+  if (title.length > 200) return json({ error: "title must be under 200 characters" }, 400);
+  if (storyUrl && !/^https?:\/\//i.test(storyUrl)) return json({ error: "url must start with http:// or https://" }, 400);
+  if (!storyUrl && !text) return json({ error: "url or text required" }, 400);
+  if (text && text.length > 10000) return json({ error: "text too long" }, 400);
+
+  await env.DB.prepare(
+    "UPDATE stories SET title = ?, url = ?, text = ? WHERE id = ?"
+  ).bind(title, storyUrl, text, storyId).run();
+  return json({ id: storyId });
+}
+
+async function deleteStory(env, user, storyId) {
+  const story = await env.DB.prepare(
+    "SELECT user_id, created_at FROM stories WHERE id = ?"
+  ).bind(storyId).first();
+  if (!story) return json({ error: "story not found" }, 404);
+  if (story.user_id !== user.id) return json({ error: "not your story" }, 403);
+  if (!withinEditWindow(story.created_at)) return json({ error: "edit window has passed" }, 403);
+  await env.DB.prepare("DELETE FROM stories WHERE id = ?").bind(storyId).run();
+  return json({ ok: true });
+}
+
 async function vote(env, storyId, user) {
   const exists = await env.DB.prepare("SELECT 1 FROM stories WHERE id = ?").bind(storyId).first();
   if (!exists) return json({ error: "story not found" }, 404);
@@ -258,19 +401,22 @@ async function vote(env, storyId, user) {
 
 // --- comments ---
 
-async function listComments(env, storyId) {
+async function listComments(env, storyId, user) {
   const result = await env.DB.prepare(`
-    SELECT c.id, c.parent_id, c.text, c.created_at, u.username
+    SELECT c.id, c.parent_id, c.user_id, c.text, c.created_at, u.username
     FROM comments c JOIN users u ON u.id = c.user_id
     WHERE c.story_id = ?
     ORDER BY c.created_at ASC
   `).bind(storyId).all();
+  const userId = user ? user.id : -1;
   const rows = (result.results || []).map(r => ({
     id: r.id,
     parent_id: r.parent_id,
     text: r.text,
     user: r.username,
     age: ageString(r.created_at),
+    own: r.user_id === userId,
+    editable: r.user_id === userId && withinEditWindow(r.created_at),
     replies: [],
   }));
   const byId = new Map(rows.map(r => [r.id, r]));
@@ -307,6 +453,34 @@ async function submitComment(env, user, body) {
     "INSERT INTO comments (story_id, parent_id, user_id, text) VALUES (?, ?, ?, ?)"
   ).bind(storyId, parentId, user.id, text).run();
   return json({ id: result.meta.last_row_id }, 201);
+}
+
+async function editComment(env, user, commentId, body) {
+  const comment = await env.DB.prepare(
+    "SELECT user_id, created_at FROM comments WHERE id = ?"
+  ).bind(commentId).first();
+  if (!comment) return json({ error: "comment not found" }, 404);
+  if (comment.user_id !== user.id) return json({ error: "not your comment" }, 403);
+  if (!withinEditWindow(comment.created_at)) return json({ error: "edit window has passed" }, 403);
+
+  let { text } = body || {};
+  text = (text || "").trim();
+  if (!text) return json({ error: "comment text required" }, 400);
+  if (text.length > 5000) return json({ error: "comment too long" }, 400);
+  await env.DB.prepare("UPDATE comments SET text = ? WHERE id = ?").bind(text, commentId).run();
+  return json({ id: commentId });
+}
+
+async function deleteComment(env, user, commentId) {
+  const comment = await env.DB.prepare(
+    "SELECT user_id, created_at FROM comments WHERE id = ?"
+  ).bind(commentId).first();
+  if (!comment) return json({ error: "comment not found" }, 404);
+  if (comment.user_id !== user.id) return json({ error: "not your comment" }, 403);
+  if (!withinEditWindow(comment.created_at)) return json({ error: "edit window has passed" }, 403);
+  // Soft delete preserves the thread shape
+  await env.DB.prepare("UPDATE comments SET text = '[deleted]' WHERE id = ?").bind(commentId).run();
+  return json({ ok: true });
 }
 
 // --- crypto helpers ---

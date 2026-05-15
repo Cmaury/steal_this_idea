@@ -23,9 +23,13 @@
     <div class="motto">&mdash; All the news that&rsquo;s fit to ship. &mdash;</div>
 
     <nav class="topnav">
-      <a href="/" class="active">top</a>
+      <a href="/" class="nav-sort" data-sort="top">top</a>
       <span class="sep">|</span>
-      <a href="/?sort=new">new</a>
+      <a href="/?sort=new" class="nav-sort" data-sort="new">new</a>
+      <span class="sep">|</span>
+      <a href="/?sort=ask" class="nav-sort" data-sort="ask">ask</a>
+      <span class="sep">|</span>
+      <a href="/?sort=show" class="nav-sort" data-sort="show">show</a>
       <span class="sep">|</span>
       <a href="/submit.html">submit</a>
       <span class="spacer"></span>
@@ -35,6 +39,7 @@
 
   <main class="stories">
     <ol class="story-list" id="story-list"></ol>
+    <div class="more" id="more"></div>
   </main>
 
   <footer>
