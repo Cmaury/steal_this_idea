@@ -80,9 +80,9 @@ a:visited { color: var(--visited); }
   font-family: "Playfair Display", "Times New Roman", serif;
   font-weight: 900;
   font-style: normal;
-  font-size: clamp(48px, 9vw, 96px);
+  font-size: clamp(40px, 6.5vw, 72px);
   line-height: 0.95;
-  margin: 18px 0 6px;
+  margin: 16px 0 4px;
   letter-spacing: -0.015em;
 }
 .title a { border: 0; }
